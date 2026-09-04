@@ -15,7 +15,10 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: `pnpm dev --port ${PORT}`,
+    // E2E runs against the production build (matches what judges see and
+    // avoids dev-server HMR flakiness): run `pnpm build` first — the
+    // test:e2e script chains it automatically.
+    command: `pnpm start --port ${PORT}`,
     url: `http://127.0.0.1:${PORT}`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
