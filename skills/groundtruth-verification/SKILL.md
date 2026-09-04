@@ -85,7 +85,44 @@ The final `decision` object contains `status` (`success` | `partial` |
 Every verified claim carries `evidenceIds` pointing into the `evidence` array
 (call ID, transcript excerpt, completion confidence).
 
-### Option B — direct CALL-E calls following the protocol
+### Option B — through a published CALL-E Goal
+
+When a published Goal already encodes the verification questions, run that
+instead of composing a call task. The Goal owns its `inputSchema` and
+`resultSchema`; each run supplies a phone number, variables, and an
+idempotency key.
+
+```bash
+MOCK_CALL_E=false CALLE_API_KEY=... CALLE_GOAL_ID=goal_... pnpm start
+```
+
+**Check the Goal before you dial.** A Goal can be healthy and still be
+structurally unable to answer a hard constraint, because its result schema
+declares no field for it. Running it anyway spends a real call on a human and
+returns a constraint that can only ever be UNKNOWN.
+
+```ts
+const goal = await client.goals.get(goalId);
+const fields = Object.keys(goal.publishedRunSpec.resultSchema.properties ?? {});
+// Every phone-derived hard constraint must bind to one of `fields`.
+// Every required input variable must be suppliable.
+// Otherwise: refuse, and say which constraint the Goal cannot answer.
+```
+
+Two properties of the Goal path to carry into your own implementation:
+
+1. **No transcript.** A Goal run returns a validated flat result, a `callId`,
+   and a typed `error` — no turns. Claims from this path carry
+   structured-result evidence and the call id. Do not imply a quote exists.
+2. **Typed errors.** Branch on `error.code`: `no_answer`, `call_failed`,
+   `declined`, `timed_out`, `canceled` mean the call did not happen (the
+   candidate is unreachable); `result_invalid`, `result_unavailable`,
+   `result_failed` mean it happened but produced nothing usable.
+
+A `completed` run can briefly carry neither `result` nor `error` while CALL-E
+parses. Keep polling — do not read it as an empty success.
+
+### Option C — direct CALL-E calls following the protocol
 
 If you cannot run the app, follow `references/verification-protocol.md`
 against the official `@call-e/calle` SDK directly:
@@ -107,16 +144,25 @@ against the official `@call-e/calle` SDK directly:
    constraint. One polite follow-up ("could you check for me?") is allowed;
    after that, move on.
 2. **No evidence, no verified claim.** A claim is verified only when the
-   structured result AND the supplier's words support it. Store both.
+   structured result supports it AND provenance is stored alongside it. On
+   the call path that provenance includes the supplier's own words — store
+   both. On the Goal path no transcript exists, so store the run id, the
+   pinned RunSpec version and the correlated call id, and say plainly that no
+   quote is available. Never synthesise a quote to fill the gap.
 3. **Purchase language never enters a call task.** The side-effect scanner
    blocks purchase/payment/commitment/credential phrases at the orchestration
    layer. The structural prohibition ("we will not purchase") is fine;
    affirmative side-effect language is not.
-4. **Stop when done.** Stop early when one candidate satisfies every hard
+4. **Never dial a question the contract cannot answer.** Whether the result
+   shape is your own `resultSchema` or a published Goal's, check that every
+   hard constraint maps to a declared field *before* the call is created. A
+   constraint with nowhere to land is a configuration error, not a supplier
+   outcome — refuse it loudly rather than spending someone's time on it.
+5. **Stop when done.** Stop early when one candidate satisfies every hard
    constraint (with a follow-up for a pending hold). Stop when no candidate
    remains. Report failure honestly with per-candidate reasons — the failure
    report IS a result.
-5. **Mask phone numbers and redact PII** in anything shown or stored beyond
+6. **Mask phone numbers and redact PII** in anything shown or stored beyond
    the working state. Never log API keys, codes, or card-like digit strings.
 
 Read `references/safety.md` before composing your first call task. It is
@@ -163,3 +209,15 @@ distance to the geography constraint, then by expected match.
 - `references/safety.md` — authorization boundaries and prohibited actions.
 - `scripts/build-call-task.mjs` — compose a protocol-compliant CALL-E call
   task + result schema from a goal JSON (no dependencies).
+- `scripts/check-goal-compatibility.mjs` — decide whether a published CALL-E
+  Goal can answer a verification goal, before you run it. Works offline
+  against a saved Goal document, or live via `goals.get` (read-only; places
+  no call). Exit code 2 means "do not run this Goal".
+
+```bash
+# Offline, against a saved Goal document
+node scripts/check-goal-compatibility.mjs goal.json --spec published-goal.json
+
+# Live (read-only)
+CALLE_API_KEY=... node scripts/check-goal-compatibility.mjs goal.json --goal-id goal_abc
+```

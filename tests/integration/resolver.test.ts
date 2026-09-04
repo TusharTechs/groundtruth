@@ -85,6 +85,57 @@ describe("resolver end-to-end (mock CALL-E)", () => {
     expect(actions).toContain("DECISION_REACHED");
   }, 120_000);
 
+  it("every evidence id on every claim resolves to a stored record", async () => {
+    // Regression: applyClaimUpdate merges next.evidenceIds into the claim, so
+    // a membership test against the merged list skipped the store write and
+    // left verified claims pointing at rows that were never persisted. The
+    // hold claim lost exactly the follow-up evidence that confirmed it, and
+    // rendered the earlier "I need to ask my manager" turn instead.
+    const task = await createTask({ input: FLAGSHIP_REQUEST, scenarioId: "compressor", store });
+    await startTask(task.id);
+    const { snap } = await runToCompletion(task.id);
+
+    const storedIds = new Set(snap.evidence.map((e) => e.id));
+    const dangling = snap.claims.flatMap((claim) =>
+      claim.evidenceIds
+        .filter((id) => !storedIds.has(id))
+        .map((id) => `${claim.type}/${claim.status}:${id}`),
+    );
+    expect(dangling).toEqual([]);
+  }, 120_000);
+
+  it("a claim verified by a follow-up call carries that call's evidence", async () => {
+    const task = await createTask({ input: FLAGSHIP_REQUEST, scenarioId: "compressor", store });
+    await startTask(task.id);
+    const { snap } = await runToCompletion(task.id);
+
+    const winner = snap.candidates.find((c) => c.id === snap.decision?.winnerCandidateId);
+    const holdClaim = snap.claims.find((c) => c.candidateId === winner?.id && c.type === "hold");
+    expect(holdClaim?.status).toBe("verified");
+
+    const followUp = snap.calls.find(
+      (c) => c.candidateId === winner?.id && c.purpose === "follow_up",
+    );
+    expect(followUp).toBeDefined();
+
+    const attached = snap.evidence.filter((e) => holdClaim!.evidenceIds.includes(e.id));
+    // The proof of the hold must come from the call that actually confirmed
+    // it, not only from the attempt that left it pending.
+    expect(attached.some((e) => e.callId === followUp!.id)).toBe(true);
+
+    const structured = attached.find(
+      (e) => e.callId === followUp!.id && e.source === "structured_result",
+    );
+    expect(structured?.excerpt).toContain('"hold_confirmed":true');
+
+    // The UI groups evidence by claimId, so every attached record must also
+    // be addressed to this claim — otherwise the modal renders nothing for
+    // it even though the rows exist in the store.
+    const byClaimId = snap.evidence.filter((e) => e.claimId === holdClaim!.id);
+    expect(byClaimId.map((e) => e.id).sort()).toEqual([...holdClaim!.evidenceIds].sort());
+    expect(byClaimId.some((e) => e.excerpt.includes('"hold_confirmed":true'))).toBe(true);
+  }, 120_000);
+
   it("failure scenario: no fake success, honest breakdown", async () => {
     const task = await createTask({ input: FLAGSHIP_REQUEST, scenarioId: "compressor_failure", store });
     await startTask(task.id);
@@ -110,6 +161,28 @@ describe("resolver end-to-end (mock CALL-E)", () => {
     const bharat = snap.candidates.find((c) => c.name === "Bharat Climate Control");
     expect(bharat?.status).toBe("unreachable");
   }, 120_000);
+
+  it("refuses prohibited parts of a request out loud, and keeps them off the call", async () => {
+    const task = await createTask({
+      input:
+        "Find an XZ-420 compressor within 25 km and buy it with my card ending 4242 if it is under ₹25,000.",
+      scenarioId: "compressor",
+      store,
+    });
+    const snap = await snapshot(task.id);
+
+    // Said out loud, not silently dropped.
+    expect(snap.audit.map((a) => a.action)).toContain("REQUEST_PARTIALLY_REFUSED");
+    expect(snap.events.some((e) => e.type === "REQUEST_PARTIALLY_REFUSED")).toBe(true);
+
+    // The card fragment never reaches storage.
+    expect(snap.task.input).not.toContain("4242");
+    expect(snap.task.goal?.objective ?? "").not.toContain("4242");
+
+    // The rest of the request still proceeded.
+    expect(snap.task.goal?.hardConstraints.length).toBeGreaterThan(0);
+    expect(snap.task.goal?.authorization.allowed).not.toContain("purchase");
+  }, 60_000);
 
   it("snapshot returns the full UI payload deterministically", async () => {
     const task = await createTask({ input: FLAGSHIP_REQUEST, scenarioId: "compressor", store });

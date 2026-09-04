@@ -1,18 +1,26 @@
 import Link from "next/link";
-import { PhoneCall, ShieldCheck, FileSearch, ArrowRight, Scale, ScrollText, Radar } from "lucide-react";
-import { isMockMode } from "@/lib/calle/client";
+import { PhoneCall, ShieldCheck, FileSearch, ArrowRight, Scale, ScrollText } from "lucide-react";
+import { GroundTruthMark } from "@/components/brand";
+import { isMockMode, resolveExecution } from "@/lib/calle/client";
 
 export const dynamic = "force-dynamic";
 
+const EXECUTION_LABEL: Record<string, string> = {
+  mock: "DEMO MODE (mock CALL-E)",
+  call: "LIVE CALL-E",
+  goal: "LIVE CALL-E (published Goal)",
+};
+
 export default function Landing() {
   const demoMode = isMockMode();
+  const executionLabel = EXECUTION_LABEL[resolveExecution()] ?? "LIVE CALL-E";
   return (
     <main className="relative flex min-h-screen flex-col items-center overflow-hidden">
       <div className="hero-grid pointer-events-none absolute inset-0" />
 
       <header className="z-10 flex w-full max-w-6xl items-center justify-between px-6 py-6">
         <div className="flex items-center gap-2">
-          <Radar className="h-6 w-6 text-emerald-400" />
+          <GroundTruthMark className="h-7 w-7 text-emerald-400" />
           <span className="text-lg font-semibold tracking-[0.2em]">GROUNDTRUTH</span>
         </div>
         <div className="flex items-center gap-3 text-sm">
@@ -23,7 +31,7 @@ export default function Landing() {
                 : "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
             }`}
           >
-            {demoMode ? "DEMO MODE (mock CALL-E)" : "LIVE CALL-E"}
+            {executionLabel}
           </span>
           <a
             href="https://github.com/CALLE-AI/awesome-phone-call-agents"

@@ -19,6 +19,26 @@ export function resolveMode(): "mock" | "real" {
   return isMockMode() ? "mock" : "real";
 }
 
+/**
+ * Execution strategy inside real mode.
+ *
+ * "goal" — CALLE_GOAL_ID is set: verification runs through a published,
+ * version-pinned CALL-E Goal (client.goals.run). The Goal owns the questions
+ * and the result schema; GroundTruth supplies variables and does the
+ * constraint solving.
+ *
+ * "call" — the default: GroundTruth composes the call task itself
+ * (client.calls.create).
+ */
+export function resolveExecution(): "mock" | "call" | "goal" {
+  if (isMockMode()) return "mock";
+  return process.env.CALLE_GOAL_ID ? "goal" : "call";
+}
+
+export function getGoalId(): string | undefined {
+  return process.env.CALLE_GOAL_ID || undefined;
+}
+
 let client: CalleClient | null = null;
 
 export function getCalleClient(): CalleClient {

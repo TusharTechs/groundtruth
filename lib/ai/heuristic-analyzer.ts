@@ -20,6 +20,27 @@ function constraint(
   return { id: partial.id ?? `c_${randomUUID().slice(0, 8)}`, ...partial };
 }
 
+/**
+ * Words that may end a captured noun phrase but are never part of the item
+ * name. The item string is spoken aloud on the call ("do you have a
+ * {item} in stock?"), so a dangling preposition is not a cosmetic bug —
+ * it is a sentence a human has to parse.
+ */
+const TRAILING_STOPWORDS = new Set([
+  "for", "with", "in", "at", "to", "from", "on", "of", "and", "or", "that",
+  "which", "within", "near", "under", "by", "the", "a", "an", "is", "it",
+]);
+
+/** Cut a captured phrase at the first clause break, then drop trailing stopwords. */
+export function trimItemPhrase(raw: string): string {
+  const clause = raw.split(/[,;:]/)[0];
+  const parts = clause.trim().split(/\s+/).filter(Boolean);
+  while (parts.length > 1 && TRAILING_STOPWORDS.has(parts[parts.length - 1].toLowerCase())) {
+    parts.pop();
+  }
+  return parts.join(" ");
+}
+
 export class HeuristicGoalAnalyzer implements GoalAnalyzer {
   async analyze(input: string): Promise<GoalAnalysis> {
     const text = input.trim();
@@ -37,10 +58,10 @@ export class HeuristicGoalAnalyzer implements GoalAnalyzer {
       text.match(/\b(?:genuine|original|OEM)\s+([A-Z][A-Z0-9]{1,7}[-\s]?\d{2,5}[A-Za-z]*\s+[a-z][\w-]*(?:\s+[a-z][\w-]*)?)/) ??
         text.match(/\b([A-Z][A-Z0-9]{1,7}[-\s]?\d{2,5}[A-Za-z]*\s+[a-z][\w-]*(?:\s+[a-z][\w-]*)?)/);
     if (itemMatch) {
-      item = itemMatch[1].trim();
+      item = trimItemPhrase(itemMatch[1]);
     } else {
       const findMatch = text.match(/\b(?:find|get|source|locate)\s+(?:a\s+|an\s+|the\s+)?([\w][\w\s-]{3,40})/i);
-      if (findMatch) item = findMatch[1].trim();
+      if (findMatch) item = trimItemPhrase(findMatch[1]);
     }
 
     // --- target equipment ---------------------------------------------------

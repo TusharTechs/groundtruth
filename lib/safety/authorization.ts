@@ -99,6 +99,20 @@ export function findProhibitedPhrases(text: string): ProhibitedAction[] {
 }
 
 /**
+ * Scan the OPERATOR'S OWN REQUEST for prohibited intents.
+ *
+ * The structural gate already guarantees such intents never reach a call:
+ * they simply are not in the allowed set, so nothing is composed for them.
+ * But silently dropping half of what someone asked for is a worse failure
+ * mode than refusing it out loud — the operator otherwise believes the
+ * purchase leg is still coming. This returns what GroundTruth is declining
+ * to do so the run can say so, in the audit log and in the UI.
+ */
+export function detectRequestedProhibitions(request: string): ProhibitedAction[] {
+  return findProhibitedPhrases(request);
+}
+
+/**
  * Validate the full authorization block of an analyzed goal. A goal that
  * allows purchases or payments is rejected — GroundTruth never buys.
  */

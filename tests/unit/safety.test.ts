@@ -7,7 +7,7 @@ import {
   actionForConstraintKind,
 } from "@/lib/safety/authorization";
 import { checkCallTaskSafety, assertCallTaskSafe } from "@/lib/safety/side-effects";
-import { maskPhone, redactText, redactTranscript } from "@/lib/safety/pii";
+import { maskPhone, redactText, redactOperatorText, redactTranscript } from "@/lib/safety/pii";
 
 describe("authorization", () => {
   const auth = questionsOnlyAuthorization(["request_hold"]);
@@ -72,6 +72,27 @@ describe("PII redaction", () => {
     expect(red).not.toContain("4111");
     expect(red).not.toContain("4821");
     expect(red).not.toContain("sk-abc123456");
+  });
+
+  it("strips context-flagged digits too short to look like a card", () => {
+    // "card ending 4242" is four digits: below the card-like threshold, but
+    // sensitive because of the word next to it.
+    const red = redactText("Pay with my card ending 4242 on pickup.");
+    expect(red).not.toContain("4242");
+    expect(red).toContain("[redacted:card]");
+  });
+
+  it("redactOperatorText removes credentials without eating prices or times", () => {
+    const red = redactOperatorText(
+      "Find an XZ-420 under 25000, hold until 1700, card ending 4242, mail me at buyer@acme.in",
+    );
+    // Removed.
+    expect(red).not.toContain("4242");
+    expect(red).not.toContain("buyer@acme.in");
+    // Preserved: the operator's own numbers are the task.
+    expect(red).toContain("25000");
+    expect(red).toContain("1700");
+    expect(red).toContain("XZ-420");
   });
 
   it("redacts only human (callee) turns in transcripts", () => {

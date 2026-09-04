@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="GroundTruth">
+  <title>GroundTruth</title>
+  <!-- The voice signal: an outbound call arc. -->
+  <!-- The check: the verified answer, rising out of and through the signal. -->
+  <mask id="gt-notch">
+    <rect width="64" height="64" fill="#fff"/>
+    <!-- Notch the arc where the check crosses it, so the check reads in front
+         on any background without needing a background-coloured knockout. -->
+    <path d="M19 40 L28 49 L51 17" stroke="#000" stroke-width="12"
+          stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </mask>
+  <path d="M11 33 A22 22 0 0 1 46 19" stroke="#0d9488" stroke-width="5.5"
+        stroke-linecap="round" fill="none" mask="url(#gt-notch)"/>
+  <path d="M19 40 L28 49 L51 17" stroke="#34d399" stroke-width="7"
+        stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>

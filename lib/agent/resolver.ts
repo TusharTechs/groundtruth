@@ -12,8 +12,8 @@ import type {
 import { getStore } from "@/lib/db";
 import type { GroundTruthStore } from "@/lib/db/store";
 import { getGoalAnalyzer } from "@/lib/ai/provider";
-import { validateAuthorization } from "@/lib/safety/authorization";
-import { redactTranscript, piiRedactionEnabled } from "@/lib/safety/pii";
+import { validateAuthorization, detectRequestedProhibitions } from "@/lib/safety/authorization";
+import { redactTranscript, redactOperatorText, piiRedactionEnabled } from "@/lib/safety/pii";
 import { discoverCandidates } from "@/lib/discovery/candidates";
 import { buildPlan, composeCallTask } from "@/lib/agent/planner";
 import {
@@ -21,7 +21,9 @@ import {
   failedConstraintsFor,
   resolvablePending,
 } from "@/lib/agent/strategist";
-import { getAdapter } from "@/lib/calle/adapter-index";
+import { getAdapter, isGoalExecution } from "@/lib/calle/adapter-index";
+import { GoalIncompatibleError } from "@/lib/calle/goal-adapter";
+import { availableVariablesFor } from "@/lib/calle/goal-binding";
 import { PHONE_RESULT_JSON_SCHEMA } from "@/lib/calle/schemas";
 import { extractClaim, applyClaimUpdate, claimTypeFromConstraintKind } from "@/lib/verification/claims";
 import { buildEvidenceForClaim } from "@/lib/verification/evidence";
@@ -60,9 +62,14 @@ export async function createTask(options: {
 }): Promise<VerificationTask> {
   const store = options.store ?? getStore();
   const at = nowIso();
+  // Analysis reads the raw request (prices and deadlines must survive), but
+  // only the redacted form is ever persisted or rendered.
+  const storedInput = piiRedactionEnabled()
+    ? redactOperatorText(options.input)
+    : options.input;
   const task: VerificationTask = {
     id: randomUUID(),
-    input: options.input,
+    input: storedInput,
     goal: null,
     plan: null,
     status: "draft",
@@ -82,6 +89,37 @@ export async function createTask(options: {
 
   // Phase 1: goal analysis.
   const analysis = await getGoalAnalyzer().analyze(options.input);
+  if (piiRedactionEnabled()) {
+    analysis.goal.objective = redactOperatorText(analysis.goal.objective);
+  }
+
+  // Say out loud which parts of the request are being declined. The
+  // structural gate already drops them; silence would let the operator
+  // believe they were accepted.
+  const refused = detectRequestedProhibitions(options.input);
+  if (refused.length > 0) {
+    await store.addAudit({
+      taskId: task.id,
+      actor: "system",
+      action: "REQUEST_PARTIALLY_REFUSED",
+      detail: `Refused prohibited action(s) in the request: ${refused.join(", ")}. GroundTruth verifies by phone only; these will not be attempted.`,
+    });
+    await store.addEvent({
+      taskId: task.id,
+      type: "REQUEST_PARTIALLY_REFUSED",
+      level: "warning",
+      message: `Not doing: ${refused.join(", ")}. GroundTruth only asks questions — the rest of the request proceeds.`,
+    });
+    for (const action of refused) {
+      await store.addAction({
+        taskId: task.id,
+        type: "blocked_action",
+        authorized: false,
+        detail: { action, source: "operator_request" },
+      });
+    }
+  }
+
   const authProblems = validateAuthorization(analysis.goal.authorization);
   if (authProblems.length > 0) {
     await store.addAudit({
@@ -329,21 +367,56 @@ async function createCallForCandidate(
   if (existing) return existing;
 
   const adapter = getAdapter();
-  const { calleCallId } = await adapter.createCall({
-    task: taskText,
-    phone: candidate.phone,
-    region: candidate.region,
-    locale: candidate.locale,
-    resultSchema: PHONE_RESULT_JSON_SCHEMA,
-    metadata: {
-      taskId,
-      candidateId: candidate.id,
-      purpose,
-      attempt,
-      scenarioId: (goal as { demoScenarioId?: string }).demoScenarioId,
-    },
-    idempotencyKey,
-  });
+
+  // The Goal path needs the constraint set (to type-check the published
+  // result schema) and the flat scalar variables the Goal declares. The
+  // call path ignores both.
+  const goalMetadata = isGoalExecution()
+    ? {
+        constraints: goal.hardConstraints,
+        goalVariables: availableVariablesFor(goal, candidate),
+      }
+    : {};
+
+  let calleCallId: string;
+  try {
+    ({ calleCallId } = await adapter.createCall({
+      task: taskText,
+      phone: candidate.phone,
+      region: candidate.region,
+      locale: candidate.locale,
+      resultSchema: PHONE_RESULT_JSON_SCHEMA,
+      metadata: {
+        taskId,
+        candidateId: candidate.id,
+        purpose,
+        attempt,
+        scenarioId: (goal as { demoScenarioId?: string }).demoScenarioId,
+        ...goalMetadata,
+      },
+      idempotencyKey,
+    }));
+  } catch (error) {
+    // A published Goal that cannot answer a hard constraint is a
+    // configuration error, not a supplier outcome: no human was called, and
+    // no candidate should be marked unreachable for it. Fail the task loudly.
+    if (error instanceof GoalIncompatibleError) {
+      await store.addAudit({
+        taskId,
+        actor: "system",
+        action: "GOAL_INCOMPATIBLE",
+        detail: error.message,
+      });
+      await store.addEvent({
+        taskId,
+        type: "GOAL_INCOMPATIBLE",
+        level: "warning",
+        message: `${error.message} No call was placed.`,
+      });
+      await store.updateTask(taskId, { status: "failed", completedAt: nowIso() });
+    }
+    throw error;
+  }
 
   call.calleCallId = calleCallId;
   call.mode = adapter.mode;
@@ -561,14 +634,29 @@ export async function onCallTerminal(
 
     if (existing) {
       const hasEvidence = existing.evidenceIds.length > 0 || evidenceRecords.length > 0;
-      const updated = applyClaimUpdate(existing, { ...draft, evidenceIds: evidenceRecords.map((e) => e.id) }, hasEvidence);
+      // The draft carries a fresh id, so its evidence was addressed to a
+      // claim that is never stored. Re-point it at the claim being updated
+      // before writing: the UI groups evidence by claimId, and records filed
+      // under the draft would be invisible even though they exist.
       for (const rec of evidenceRecords) {
-        if (!updated.evidenceIds.includes(rec.id)) {
-          await store.addEvidence(rec);
-          updated.evidenceIds.push(rec.id);
-        }
+        rec.claimId = existing.id;
       }
-      await store.updateClaim(existing.id, updated);
+      // Persist the new evidence BEFORE merging the claim. applyClaimUpdate
+      // already folds next.evidenceIds into the claim, so testing membership
+      // against the merged list skips every record and leaves the claim
+      // pointing at rows that were never written — a follow-up call's proof
+      // would silently vanish behind the earlier, weaker evidence.
+      for (const rec of evidenceRecords) {
+        await store.addEvidence(rec);
+      }
+      const updated = applyClaimUpdate(existing, { ...draft, evidenceIds: evidenceRecords.map((e) => e.id) }, hasEvidence);
+      // A confirming call on an already-verified claim is a value no-op
+      // (applyClaimUpdate returns `existing`), but its evidence still belongs
+      // to the claim — union the ids so nothing is orphaned either way.
+      const evidenceIds = Array.from(
+        new Set([...updated.evidenceIds, ...evidenceRecords.map((e) => e.id)]),
+      );
+      await store.updateClaim(existing.id, { ...updated, evidenceIds });
       evaluation.claimId = existing.id;
     } else {
       let stored = await store.createClaim(draft);

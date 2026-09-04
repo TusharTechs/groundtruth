@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowRight, Loader2, Radar, Sparkles, TriangleAlert } from "lucide-react";
+import { ArrowRight, Loader2, Sparkles, TriangleAlert } from "lucide-react";
+import { GroundTruthMark } from "@/components/brand";
 import { cn } from "@/lib/ui/utils";
 
 interface DemoInfo {
@@ -88,7 +89,7 @@ export default function VerifyPage() {
     <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-6 py-10">
       <div className="mb-8 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-200">
-          <Radar className="h-4 w-4 text-emerald-400" /> GROUNDTRUTH
+          <GroundTruthMark className="h-5 w-5 text-emerald-400" /> GROUNDTRUTH
         </Link>
         {demo && (
           <span

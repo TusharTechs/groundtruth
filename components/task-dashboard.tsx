@@ -11,12 +11,12 @@ import {
   PhoneCall,
   PhoneIncoming,
   PhoneMissed,
-  Radar,
   Scale,
   ShieldAlert,
   Sparkles,
   XCircle,
 } from "lucide-react";
+import { GroundTruthMark } from "@/components/brand";
 import { cn, maskPhoneUi, formatCurrency } from "@/lib/ui/utils";
 import type { TaskSnapshot, Claim, Evidence } from "@/lib/domain/types";
 
@@ -107,7 +107,7 @@ export function TaskDashboard({ taskId }: { taskId: string }) {
       {/* Header */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <a href="/verify" className="flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-200">
-          <Radar className="h-4 w-4 text-emerald-400" /> GROUNDTRUTH
+          <GroundTruthMark className="h-5 w-5 text-emerald-400" /> GROUNDTRUTH
         </a>
         <div className="flex items-center gap-2">
           <span
@@ -254,7 +254,6 @@ export function TaskDashboard({ taskId }: { taskId: string }) {
               calls={calls.filter((c) => c.candidateId === candidate.id)}
               onSelectClaim={setSelectedClaim}
               isWinner={decision?.winnerCandidateId === candidate.id}
-              evidenceFor={evidenceFor}
             />
           ))}
         </div>
@@ -360,7 +359,6 @@ function CandidateCard({
   calls,
   onSelectClaim,
   isWinner,
-  evidenceFor,
 }: {
   candidate: TaskSnapshot["candidates"][number];
   evaluations: TaskSnapshot["evaluations"];
@@ -369,7 +367,6 @@ function CandidateCard({
   calls: TaskSnapshot["calls"];
   onSelectClaim: (c: Claim) => void;
   isWinner: boolean;
-  evidenceFor: Map<string, Evidence[]>;
 }) {
   const transcriptCall = calls.find((c) => c.transcript.length > 0);
   return (
@@ -489,6 +486,8 @@ function EventIcon({ type, level }: { type: string; level: string }) {
   if (type.includes("VERIFIED")) return <BadgeCheck className="text-emerald-400" />;
   if (type.includes("FAILED")) return <XCircle className="text-red-400" />;
   if (type === "STRATEGY_DECISION") return <Sparkles className={cls} />;
+  if (type === "REQUEST_PARTIALLY_REFUSED") return <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />;
+  if (type === "GOAL_INCOMPATIBLE") return <Ban className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />;
   if (type === "DECISION_REACHED") return <BadgeCheck className="text-emerald-400" />;
   if (type === "TASK_STARTED") return <CircleDashed className={cls} />;
   return <CircleDashed className={cls} />;
