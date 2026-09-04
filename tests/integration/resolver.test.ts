@@ -184,6 +184,32 @@ describe("resolver end-to-end (mock CALL-E)", () => {
     expect(snap.task.goal?.authorization.allowed).not.toContain("purchase");
   }, 60_000);
 
+  it("survives a cold serverless instance mid-run", async () => {
+    // The mock adapter's stage map is per-process. On serverless the poll
+    // that advances a call can land on a different instance than the one
+    // that created it; without rehydration those calls came back as
+    // unknown_call and the demo died in front of whoever was watching.
+    const task = await createTask({ input: FLAGSHIP_REQUEST, scenarioId: "compressor", store });
+    await startTask(task.id);
+
+    const adapter = getMockAdapter();
+    let snap = await snapshot(task.id);
+    for (let i = 0; i < 400 && snap.task.status !== "completed"; i++) {
+      snap = await tick(task.id);
+      // Every third poll pretends to be a fresh instance.
+      if (i % 3 === 2) adapter.__simulateColdStart();
+    }
+
+    expect(snap.task.status).toBe("completed");
+    // Same narrative, not a degraded one.
+    expect(snap.decision?.status).toBe("success");
+    const winner = snap.candidates.find((c) => c.id === snap.decision?.winnerCandidateId);
+    expect(winner?.name).toBe("Metro Components");
+    expect(snap.calls.some((c) => c.purpose === "follow_up")).toBe(true);
+    // No call was abandoned as unrecognised.
+    expect(snap.calls.some((c) => c.failureCode === "unknown_call")).toBe(false);
+  }, 120_000);
+
   it("snapshot returns the full UI payload deterministically", async () => {
     const task = await createTask({ input: FLAGSHIP_REQUEST, scenarioId: "compressor", store });
     const snap = await snapshot(task.id);

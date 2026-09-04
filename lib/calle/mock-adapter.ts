@@ -1,6 +1,7 @@
 import type { CallStatus, TranscriptTurn } from "@/lib/domain/types";
 import type { AdapterCallInput, AdapterCallState, CalleAdapter } from "@/lib/calle/adapter";
 import { logCalle } from "@/lib/calle/client";
+import { getStore } from "@/lib/db";
 import { findPersonaByPhone, type MockAttemptScript } from "@/lib/demo/scenarios";
 
 /**
@@ -13,6 +14,10 @@ import { findPersonaByPhone, type MockAttemptScript } from "@/lib/demo/scenarios
  *   timeline stream realistically without wall-clock dependence.
  * - Failure, ambiguity, and adaptive follow-up behavior are all scripted so
  *   the demo narrative is always reproducible.
+ * - Runtime state is a per-process cache, NOT the source of truth. On
+ *   serverless the poll that advances a call can land on a different
+ *   instance than the one that created it, so a cache miss rehydrates the
+ *   script and stage from the store instead of failing the call.
  */
 
 interface MockRuntime {
@@ -86,7 +91,10 @@ export class MockCalleAdapter implements CalleAdapter {
   }
 
   async getCallState(calleCallId: string): Promise<AdapterCallState> {
-    const rt = this.runtimes.get(calleCallId);
+    let rt = this.runtimes.get(calleCallId);
+    if (!rt) {
+      rt = (await this.rehydrate(calleCallId)) ?? undefined;
+    }
     if (!rt) {
       return {
         calleCallId,
@@ -143,6 +151,68 @@ export class MockCalleAdapter implements CalleAdapter {
     const revealedTurns = rt.stage - dialStages;
     const visibleCount = Math.min(rt.script.turns.length, revealedTurns * 2);
     return snapshot(rt, "in_progress", rt.script.turns.slice(0, visibleCount));
+  }
+
+  /**
+   * Rebuild a call's runtime from durable state.
+   *
+   * The persisted CallRecord names the candidate and the attempt, the
+   * candidate carries the phone, and the task's goal carries the scenario —
+   * which is everything needed to find the same scripted persona again. The
+   * stage is recovered from how much transcript was already persisted, so a
+   * rehydrated call resumes the same narrative rather than restarting it.
+   *
+   * Pacing can shift by a single poll across an instance boundary; the
+   * content cannot, because the script is keyed by persona and attempt.
+   */
+  private async rehydrate(calleCallId: string): Promise<MockRuntime | undefined> {
+    try {
+      const store = getStore();
+      const call = await store.getCallByCalleId(calleCallId);
+      if (!call) return undefined;
+
+      const candidate = (await store.getCandidates(call.taskId)).find(
+        (c) => c.id === call.candidateId,
+      );
+      if (!candidate) return undefined;
+
+      const task = await store.getTask(call.taskId);
+      const scenarioId = (task?.goal as { demoScenarioId?: string } | null | undefined)
+        ?.demoScenarioId;
+      const persona = findPersonaByPhone(candidate.phone, scenarioId);
+      const script =
+        persona?.attempts.find((a) => a.purpose === call.purpose && a.attempt === call.attempt) ??
+        persona?.attempts.find((a) => a.purpose === call.purpose) ??
+        DEFAULT_SCRIPT;
+
+      const dialStages = script.failure ? 2 : 1;
+      // Turns are revealed in bot+user pairs, so the persisted count tells us
+      // how many reveal stages already happened.
+      const revealed = Math.ceil(call.transcript.length / 2);
+      const stage = call.transcript.length > 0 ? dialStages + revealed : dialStages;
+
+      const rt: MockRuntime = { calleCallId, script, stage, createdAt: Date.now() };
+      this.runtimes.set(calleCallId, rt);
+      logCalle("MOCK RUNTIME REHYDRATED", {
+        calleCallId,
+        persona: persona?.name ?? "generic",
+        stage,
+        demoMode: true,
+      });
+      return rt;
+    } catch {
+      // Rehydration is best-effort: a store that cannot answer leaves the
+      // call unknown, which is the same outcome as before.
+      return undefined;
+    }
+  }
+
+  /**
+   * Test hook: drop the per-process cache, standing in for a poll that lands
+   * on a cold serverless instance. Every in-flight call must survive it.
+   */
+  __simulateColdStart(): void {
+    this.runtimes.clear();
   }
 
   /** Force terminal state (used when a webhook-equivalent shortcut is needed). */
