@@ -1,6 +1,6 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
-import type { Pool } from "pg";
+import { Pool } from "pg";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "@/lib/db/schema";
 import type {
@@ -31,9 +31,7 @@ export class PostgresStore implements GroundTruthStore {
   private pool: Pool;
 
   constructor(connectionString: string) {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { Pool: PgPool } = require("pg") as typeof import("pg");
-    this.pool = new PgPool({ connectionString, max: 5 });
+    this.pool = new Pool({ connectionString, max: 5 });
     this.db = drizzle(this.pool, { schema });
   }
 

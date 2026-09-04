@@ -11,7 +11,7 @@
 
 **CALL-E — Your Code Is Calling** hackathon
 
-[For judges](#for-judges--3-minutes-no-credentials) · [Architecture](#architecture) · [Where CALL-E runs](#where-call-e-actually-runs) · [The Agent Skill](#the-contribution--a-reusable-agent-skill)
+[Live demo](https://groundtruth-calle.vercel.app) · [For judges](#for-judges--3-minutes-no-credentials) · [Architecture](#architecture) · [Where CALL-E runs](#where-call-e-actually-runs) · [The Agent Skill](#the-contribution--a-reusable-agent-skill)
 
 <!-- TODO before submitting: add the demo video to the nav line above, e.g.  · [Demo video](https://youtu.be/…) -->
 
@@ -24,6 +24,9 @@
 ---
 
 ## For judges — 3 minutes, no credentials
+
+Open **[groundtruth-calle.vercel.app](https://groundtruth-calle.vercel.app)** —
+or run it yourself, which needs no credentials at all:
 
 ```bash
 pnpm install

@@ -1,4 +1,5 @@
 import { MemoryStore } from "@/lib/db/memory-store";
+import { PostgresStore } from "@/lib/db/postgres-store";
 import type { GroundTruthStore } from "@/lib/db/store";
 
 /**
@@ -7,7 +8,10 @@ import type { GroundTruthStore } from "@/lib/db/store";
  * The active backend is reported in /api/settings and the audit log so the
  * operator always knows where data lives.
  *
- * PostgresStore is imported lazily so "pg" is only loaded in database mode.
+ * Both stores are imported statically. An earlier lazy require() kept "pg"
+ * out of memory-mode processes, but the bundler rewrote it and broke the
+ * Postgres path in production builds; "pg" is declared as a server-external
+ * package instead, which achieves the same thing without the hazard.
  */
 
 let store: GroundTruthStore | null = null;
@@ -17,10 +21,6 @@ export function getStore(): GroundTruthStore {
   if (store) return store;
   const databaseUrl = process.env.DATABASE_URL;
   if (databaseUrl && databaseUrl.startsWith("postgres")) {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { PostgresStore } = require("@/lib/db/postgres-store") as {
-      PostgresStore: new (url: string) => GroundTruthStore;
-    };
     store = new PostgresStore(databaseUrl);
     backend = "postgres";
   } else {
