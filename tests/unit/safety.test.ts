@@ -74,6 +74,21 @@ describe("PII redaction", () => {
     expect(red).not.toContain("sk-abc123456");
   });
 
+  it("redacts real CALL-E API keys, not just the SDK's example prefix", () => {
+    // Production keys use the iams_live_ prefix (docs.heycall-e.com);
+    // the original pattern only matched the calle_* form from SDK examples,
+    // so a real key would have passed straight through into stored text.
+    for (const key of ["iams_live_9f2b7c1d4e8a6f3b", "iams_test_abc12345", "calle_live_xyz98765"]) {
+      const red = redactText(`the key is ${key} do not log it`);
+      expect(red).not.toContain(key);
+      expect(red).toContain("[redacted:secret]");
+    }
+  });
+
+  it("does not redact ordinary snake_case words as secrets", () => {
+    expect(redactText("the hold_until field is set")).toContain("hold_until");
+  });
+
   it("strips context-flagged digits too short to look like a card", () => {
     // "card ending 4242" is four digits: below the card-like threshold, but
     // sensitive because of the word next to it.

@@ -104,6 +104,34 @@ describe("webhook processing", () => {
     const target = candidates.find((c) => c.id === call.candidateId);
     expect(target?.status).toBe("unreachable");
   });
+
+  it("rejects a delivery whose CALL-E-Event-Id header disagrees with the body", async () => {
+    // Deliveries are unsigned, so the webhook docs ask receivers to check the
+    // header against the body's event id. It is a consistency check, not
+    // proof of identity — the URL token still does the authenticating.
+    process.env.WEBHOOK_TOKEN = "test-token";
+    const { call } = await setupTaskWithCall();
+    const { POST } = await import("@/app/api/webhook/calle/route");
+
+    const body = {
+      id: "evt_real",
+      type: "call.completed",
+      data: { id: call.calleCallId, status: "completed" },
+    };
+    const send = (headers: Record<string, string>) =>
+      POST(
+        new Request("http://localhost/api/webhook/calle?token=test-token", {
+          method: "POST",
+          headers: { "content-type": "application/json", ...headers },
+          body: JSON.stringify(body),
+        }),
+      );
+
+    expect((await send({ "CALL-E-Event-Id": "evt_someone_else" })).status).toBe(400);
+    // A matching header is accepted; so is an absent one (older deliveries).
+    expect((await send({ "CALL-E-Event-Id": "evt_real" })).status).toBe(200);
+    delete process.env.WEBHOOK_TOKEN;
+  }, 60_000);
 });
 
 // Adapter still imported to keep mock runtime parity checks obvious.

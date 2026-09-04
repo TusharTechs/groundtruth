@@ -11,7 +11,14 @@ const E164 = /(\+?\d[\d\s().-]{7,16}\d)/g;
 const CARD_LIKE = /\b(?:\d[ -]?){13,19}\b/g;
 const OTP_LIKE = /\b\d{4,8}\b(?=\s|$|[.,])/g;
 const EMAIL = /[\w.+-]+@[\w-]+\.[\w.]+/g;
-const SECRET_LIKE = /\b(sk-[A-Za-z0-9_-]{8,}|Bearer\s+[A-Za-z0-9._-]{8,}|calle_(?:live|test)_\w+)\b/g;
+/**
+ * Credential shapes. CALL-E production keys use the `iams_live_` prefix
+ * (docs.heycall-e.com/authentication); `calle_*` is kept because the SDK's
+ * own examples use it, and a bare `iams_`/`calle_` catch-all covers other
+ * environment prefixes rather than leaking a key we failed to predict.
+ */
+const SECRET_LIKE =
+  /\b(sk-[A-Za-z0-9_-]{8,}|Bearer\s+[A-Za-z0-9._-]{8,}|(?:iams|calle)_[A-Za-z0-9]+_[A-Za-z0-9_-]{4,})\b/g;
 /**
  * Digits that are sensitive because of the word next to them ("card ending
  * 4242", "OTP 1234"). Too short to trip CARD_LIKE, too dangerous to keep.

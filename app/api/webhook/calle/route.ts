@@ -12,6 +12,8 @@ export const dynamic = "force-dynamic";
  * - Authentication: current CALL-E webhook deliveries are unsigned (the SDK's
  *   signature helpers are deprecated), so GroundTruth authenticates with a
  *   shared token in the registered webhook URL. A wrong/missing token gets 401.
+ *   The CALL-E-Event-Id header is cross-checked against the body's event id,
+ *   as the webhook docs advise; that is a consistency check, not identity.
  * - Idempotency: the webhook event id is inserted into a unique ledger first;
  *   duplicate deliveries are acknowledged (2xx) but NOT processed twice.
  * - Payload: { id, type: call.completed|call.failed|call.result_validation_failed,
@@ -58,6 +60,21 @@ export async function POST(request: Request) {
 
   if (!event.id || !event.type || !event.data?.id) {
     return NextResponse.json({ ok: false, error: "missing event fields" }, { status: 400 });
+  }
+
+  // CALL-E deliveries are unsigned, so the docs ask receivers to check that
+  // the CALL-E-Event-Id header agrees with the body's event id. It is not
+  // proof of sender identity — it only catches a replayed or rewritten body
+  // paired with the wrong header — so it sits alongside the URL token rather
+  // than replacing it. Absent header: accept, as older deliveries omit it.
+  const headerEventId = request.headers.get("call-e-event-id");
+  if (headerEventId && headerEventId !== event.id) {
+    logCalle("WEBHOOK EVENT ID MISMATCH", {
+      headerEventId,
+      bodyEventId: event.id,
+      calleCallId: event.data.id,
+    });
+    return NextResponse.json({ ok: false, error: "event id mismatch" }, { status: 400 });
   }
 
   const store = getStore();
