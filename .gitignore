@@ -44,3 +44,8 @@ next-env.d.ts
 # playwright
 /test-results/
 /playwright-report/
+
+# demo video build artifacts
+/groundtruth-demo.mp4
+/.demo-raw/
+/demo-raw/
