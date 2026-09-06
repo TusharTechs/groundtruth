@@ -254,6 +254,8 @@ distance to the geography constraint, then by expected match.
 
 ## Further reading
 
+- `references/examples.md` — runnable examples: composing a call task, the
+  Goal compatibility refusal, a full offline run, and the honest-failure path.
 - `references/verification-protocol.md` — the full plan → call → adapt →
   extract → verify → decide loop with pseudo-code.
 - `references/evidence-model.md` — claims, evidence, confidence, schemas.
