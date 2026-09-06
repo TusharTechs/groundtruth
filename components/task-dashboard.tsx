@@ -577,7 +577,18 @@ function EvidenceModal({
                   <span>{ev.source.replace(/_/g, " ")}</span>
                   <span>{new Date(ev.capturedAt).toLocaleTimeString("en-IN")}</span>
                 </div>
-                <p className="text-zinc-300">{ev.excerpt}</p>
+                {/* Structured results are long unbroken JSON — no spaces to
+                    break at, so without overflow-wrap they get clipped at the
+                    modal edge and the tail of the object is unreadable. */}
+                <p
+                  className={cn(
+                    "text-zinc-300 [overflow-wrap:anywhere]",
+                    ev.source === "structured_result" &&
+                      "font-mono text-[12.5px] leading-relaxed",
+                  )}
+                >
+                  {ev.excerpt}
+                </p>
               </li>
             ))}
           </ul>
