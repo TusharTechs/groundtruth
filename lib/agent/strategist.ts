@@ -114,7 +114,7 @@ export function resolvablePending(
     // Constraint-level resolvability heuristics: the mock scenario scripts
     // hold-approval and catalog-check follow-ups; anything else is not worth
     // a second call.
-    if (constraint.kind === "hold_until" && lastCall.result?.hold_available === true) {
+    if (constraint.kind === "hold_until" && holdIsStillOpen(lastCall.result)) {
       pending.push({ constraint, evaluation });
     } else if (constraint.kind === "compatibility" && lastCall.result?.compatibility === "uncertain") {
       pending.push({ constraint, evaluation });
@@ -123,6 +123,26 @@ export function resolvablePending(
     // the supplier already declined to check, so the constraint moves on.
   }
   return pending;
+}
+
+/**
+ * Is a hold still worth one more call?
+ *
+ * Keyed on refusal, not on a positive flag. A real supplier saying "I can
+ * hold it, but I need to check with my manager first" is the exact case a
+ * follow-up exists for, and on a live call CALL-E extracted that as
+ * `hold_available: null, hold_confirmed: false` — the earlier condition
+ * required `hold_available === true`, which only the deterministic mock ever
+ * produced, so the follow-up never fired against a real conversation.
+ *
+ * Only an explicit refusal closes the door; anything short of that is an
+ * unresolved answer, and unresolved answers are what follow-ups are for.
+ */
+function holdIsStillOpen(result: CallRecord["result"]): boolean {
+  if (!result) return false;
+  if (result.hold_available === false) return false; // supplier said no
+  if (result.hold_confirmed === true) return false; // already settled
+  return true;
 }
 
 export function failedConstraintsFor(

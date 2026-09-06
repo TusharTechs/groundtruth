@@ -77,6 +77,22 @@ describe("demo candidate safety", () => {
     }
   });
 
+  it("defaults to an empty candidate list in real mode, not an error", async () => {
+    // Refusing to hand out demo numbers must not make a real task impossible
+    // to create: the operator supplies candidates via POST /api/candidates.
+    const { defaultProvider } = await import("@/lib/discovery/providers");
+    const prev = { mock: process.env.MOCK_CALL_E, key: process.env.CALLE_API_KEY };
+    process.env.MOCK_CALL_E = "false";
+    process.env.CALLE_API_KEY = "iams_test_notreal";
+    try {
+      await expect(defaultProvider().search({} as never, {})).resolves.toEqual([]);
+    } finally {
+      process.env.MOCK_CALL_E = prev.mock;
+      if (prev.key === undefined) delete process.env.CALLE_API_KEY;
+      else process.env.CALLE_API_KEY = prev.key;
+    }
+  });
+
   it("still returns personas in mock mode", async () => {
     const { DemoCandidateProvider } = await import("@/lib/discovery/providers");
     process.env.MOCK_CALL_E = "true";

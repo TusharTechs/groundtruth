@@ -150,3 +150,46 @@ describe("confidence model", () => {
     expect(constraintSatisfiedWithConfidence({ constraintId: "c", status: "fail", reason: "r" }, []).satisfied).toBe(false);
   });
 });
+
+describe("follow-up trigger against real extraction shapes", () => {
+  const goal = {
+    hardConstraints: [
+      { id: "c_hold", kind: "hold_until", label: "Hold until 5 PM", hard: true,
+        params: { until: "5 PM" }, question: "hold?", claimKey: "hold" },
+    ],
+  } as never;
+  const call = (result: Record<string, unknown>) =>
+    [{ status: "completed", result, createdAt: "2026-01-01T00:00:00Z" }] as never;
+
+  it("follows up when a real call leaves the hold pending approval", async () => {
+    const { resolvablePending } = await import("@/lib/agent/strategist");
+    // Exactly what CALL-E returned for "I can hold it, but I need to check
+    // with my manager first" on a live call: hold_available stayed null.
+    const pending = resolvablePending(
+      goal,
+      call({ hold_available: null, hold_confirmed: false }),
+      [] as never,
+    );
+    expect(pending.map((p) => p.constraint.kind)).toEqual(["hold_until"]);
+  });
+
+  it("still follows up on the mock's shape", async () => {
+    const { resolvablePending } = await import("@/lib/agent/strategist");
+    const pending = resolvablePending(
+      goal,
+      call({ hold_available: true, hold_confirmed: false }),
+      [] as never,
+    );
+    expect(pending).toHaveLength(1);
+  });
+
+  it("does not follow up when the supplier refused the hold", async () => {
+    const { resolvablePending } = await import("@/lib/agent/strategist");
+    const pending = resolvablePending(
+      goal,
+      call({ hold_available: false, hold_confirmed: false }),
+      [] as never,
+    );
+    expect(pending).toEqual([]);
+  });
+});

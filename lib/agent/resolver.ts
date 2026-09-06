@@ -46,6 +46,16 @@ import { buildDecision } from "@/lib/verification/decision";
 
 const nowIso = () => new Date().toISOString();
 
+/**
+ * How long to leave a supplier alone before a follow-up call. Zero in mock
+ * mode so the demo stays brisk; FOLLOW_UP_DELAY_MS overrides for real runs.
+ */
+function followUpDelayMs(): number {
+  if (process.env.MOCK_CALL_E?.toLowerCase() !== "false") return 0;
+  const raw = Number(process.env.FOLLOW_UP_DELAY_MS);
+  return Number.isFinite(raw) && raw >= 0 ? raw : 90_000;
+}
+
 export class ResolverError extends Error {}
 
 /** Per-process tick lock (single Next.js server process). */
@@ -255,6 +265,16 @@ async function advanceTask(taskId: string, store: GroundTruthStore): Promise<voi
   });
 
   if (decision.kind === "follow_up") {
+    // Hold the follow-up for a beat. Redialling the same person seconds after
+    // hanging up is both socially wrong — they were asked to go check with a
+    // manager — and technically fragile: on a live run CALL-E failed exactly
+    // such a redial with a zero-duration provider 500. The mock has no wall
+    // clock, so this only ever surfaces against real calls.
+    const lastCompletedAt = candidateCalls.at(-1)?.completedAt;
+    const waitMs = followUpDelayMs();
+    if (lastCompletedAt && Date.now() - new Date(lastCompletedAt).getTime() < waitMs) {
+      return; // a later tick will place it
+    }
     await createCallForCandidate(taskId, currentCandidate, "follow_up", decision.focusConstraints, store, plan, goal, {
       attempt: candidateCalls.length + 1,
       priorContext: candidateCalls.at(-1)?.summary ?? undefined,

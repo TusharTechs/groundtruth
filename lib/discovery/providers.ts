@@ -88,6 +88,21 @@ export class WebCandidateProvider implements CandidateProvider {
   }
 }
 
+/**
+ * Yields nothing. This is the default in real mode: demo personas must never
+ * be dialled, so a real run starts with an empty candidate list and the
+ * operator supplies numbers explicitly via POST /api/candidates.
+ */
+export class NullCandidateProvider implements CandidateProvider {
+  readonly name = "manual";
+
+  async search(): Promise<CandidateInput[]> {
+    return [];
+  }
+}
+
 export function defaultProvider(): CandidateProvider {
-  return new DemoCandidateProvider();
+  // Real mode gets no candidates by default rather than an error: refusing to
+  // hand out demo numbers must not also make a real task impossible to create.
+  return isMockMode() ? new DemoCandidateProvider() : new NullCandidateProvider();
 }
