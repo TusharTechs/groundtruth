@@ -14,7 +14,7 @@
 [Demo video](https://youtu.be/kjqOmoUesiE) · [Live demo](https://groundtruth-calle.vercel.app) · [For judges](#for-judges--3-minutes-no-credentials) · [Architecture](#architecture) · [Where CALL-E runs](#where-call-e-actually-runs) · [The Agent Skill](#the-contribution--a-reusable-agent-skill)
 
 ![SDK](https://img.shields.io/badge/%40call--e%2Fcalle-0.7.0-2dd4bf?style=flat-square)
-![Tests](https://img.shields.io/badge/tests-75%20unit%20%2B%20integration%20%C2%B7%202%20e2e-34d399?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-79%20unit%20%2B%20integration%20%C2%B7%202%20e2e-34d399?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-71717a?style=flat-square)
 
 </div>
@@ -49,7 +49,7 @@ below happens on its own, identically on every run.
 Verify the engineering in one command each:
 
 ```bash
-pnpm test        # 75 unit + integration tests
+pnpm test        # 79 unit + integration tests
 pnpm test:e2e    # 2 Playwright flows against a production build
 pnpm typecheck && pnpm lint && pnpm build
 ```
@@ -425,7 +425,7 @@ back to mock.
 ```bash
 pnpm lint          # eslint (0 errors, 0 warnings)
 pnpm typecheck     # next typegen && tsc --noEmit
-pnpm test          # 75 unit + integration tests (vitest)
+pnpm test          # 79 unit + integration tests (vitest)
 pnpm build         # production build
 pnpm test:e2e      # 2 Playwright e2e flows against the production build
 pnpm db:push       # apply the Drizzle schema when DATABASE_URL is set
