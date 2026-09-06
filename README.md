@@ -11,9 +11,7 @@
 
 **CALL-E — Your Code Is Calling** hackathon
 
-[Live demo](https://groundtruth-calle.vercel.app) · [For judges](#for-judges--3-minutes-no-credentials) · [Architecture](#architecture) · [Where CALL-E runs](#where-call-e-actually-runs) · [The Agent Skill](#the-contribution--a-reusable-agent-skill)
-
-<!-- TODO before submitting: add the demo video to the nav line above, e.g.  · [Demo video](https://youtu.be/…) -->
+[Demo video](https://youtu.be/kjqOmoUesiE) · [Live demo](https://groundtruth-calle.vercel.app) · [For judges](#for-judges--3-minutes-no-credentials) · [Architecture](#architecture) · [Where CALL-E runs](#where-call-e-actually-runs) · [The Agent Skill](#the-contribution--a-reusable-agent-skill)
 
 ![SDK](https://img.shields.io/badge/%40call--e%2Fcalle-0.7.0-2dd4bf?style=flat-square)
 ![Tests](https://img.shields.io/badge/tests-75%20unit%20%2B%20integration%20%C2%B7%202%20e2e-34d399?style=flat-square)
@@ -25,8 +23,9 @@
 
 ## For judges — 3 minutes, no credentials
 
-Open **[groundtruth-calle.vercel.app](https://groundtruth-calle.vercel.app)** —
-or run it yourself, which needs no credentials at all:
+**[Watch the 2:38 demo](https://youtu.be/kjqOmoUesiE)**, open
+**[groundtruth-calle.vercel.app](https://groundtruth-calle.vercel.app)**, or run
+it yourself — which needs no credentials at all:
 
 ```bash
 pnpm install
@@ -307,7 +306,9 @@ node skills/groundtruth-verification/scripts/check-goal-compatibility.mjs \
 
 ## Demo
 
-The deterministic 3-minute demo works offline in DEMO MODE:
+**▶ [Watch the demo (2:38)](https://youtu.be/kjqOmoUesiE)**
+
+The deterministic demo works offline in DEMO MODE:
 
 1. **Landing** (`/`) — the pitch and the core loop.
 2. **Verify Reality** (`/verify`) — flagship request pre-filled; *Analyze*
