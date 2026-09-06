@@ -58,6 +58,34 @@ describe("side-effect gate", () => {
   });
 });
 
+describe("demo candidate safety", () => {
+  it("refuses to hand out demo personas in real mode", async () => {
+    const { DemoCandidateProvider } = await import("@/lib/discovery/providers");
+    const prev = { mock: process.env.MOCK_CALL_E, key: process.env.CALLE_API_KEY };
+    process.env.MOCK_CALL_E = "false";
+    process.env.CALLE_API_KEY = "iams_test_notreal";
+    try {
+      // Fictional but well-formed numbers: dialling them for real reaches a
+      // stranger, so real runs must supply candidates explicitly.
+      await expect(
+        new DemoCandidateProvider().search({} as never, { scenarioId: "compressor" }),
+      ).rejects.toThrow(/mock-mode only/i);
+    } finally {
+      process.env.MOCK_CALL_E = prev.mock;
+      if (prev.key === undefined) delete process.env.CALLE_API_KEY;
+      else process.env.CALLE_API_KEY = prev.key;
+    }
+  });
+
+  it("still returns personas in mock mode", async () => {
+    const { DemoCandidateProvider } = await import("@/lib/discovery/providers");
+    process.env.MOCK_CALL_E = "true";
+    delete process.env.CALLE_API_KEY;
+    const found = await new DemoCandidateProvider().search({} as never, { scenarioId: "compressor" });
+    expect(found.length).toBeGreaterThan(0);
+  });
+});
+
 describe("PII redaction", () => {
   it("masks phone numbers for display", () => {
     const masked = maskPhone("+918047110001");

@@ -1,5 +1,6 @@
 import type { VerificationGoal } from "@/lib/domain/types";
 import { demoScenarios, getScenario } from "@/lib/demo/scenarios";
+import { isMockMode } from "@/lib/calle/client";
 
 /**
  * Candidate discovery. The CandidateProvider abstraction keeps the agent
@@ -33,6 +34,17 @@ export class DemoCandidateProvider implements CandidateProvider {
     goal: VerificationGoal,
     context?: { scenarioId?: string },
   ): Promise<CandidateInput[]> {
+    // The demo personas carry well-formed Indian landline numbers. They are
+    // fictional, but they are not unreachable: in real mode CALL-E would dial
+    // them and a stranger would answer. Demo candidates therefore exist only
+    // in mock mode — real runs must supply candidates explicitly.
+    if (!isMockMode()) {
+      throw new Error(
+        "DemoCandidateProvider is mock-mode only: its supplier numbers are fictional and " +
+          "must never be dialled. Supply real candidates via POST /api/candidates " +
+          "(ManualCandidateProvider) when MOCK_CALL_E=false.",
+      );
+    }
     const scenario = getScenario(context?.scenarioId ?? "compressor") ?? demoScenarios[0];
     return scenario.personas.map((p) => ({
       name: p.name,

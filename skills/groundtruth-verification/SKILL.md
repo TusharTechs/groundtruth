@@ -61,6 +61,57 @@ Authorization: questions + hold request allowed; purchases prohibited.
 Read `references/verification-protocol.md` before your first run. It defines
 the plan → call → adapt → extract → verify → decide loop step by step.
 
+## Setup
+
+No credentials are needed to read this skill or to run its scripts against a
+saved Goal document. To execute verifications you need one of:
+
+- **The GroundTruth app** (recommended). `pnpm install`, then
+  `MOCK_CALL_E=true pnpm dev` — deterministic mock CALL-E, no keys.
+- **Direct CALL-E access.** `pnpm add @call-e/calle`, then set
+  `CALLE_API_KEY` (server-side only; never in browser code) and optionally
+  `CALLE_BASE_URL`. Keys are issued from the CALL-E dashboard.
+
+The scripts in `scripts/` have no dependencies and run on plain Node:
+
+```bash
+node scripts/build-call-task.mjs goal.json
+node scripts/check-goal-compatibility.mjs goal.json --spec published-goal.json
+```
+
+## Side effects and cancellation
+
+**This skill places real phone calls to real people.** That is the whole
+point of it, and it is the thing to be careful about.
+
+| Effect | When | Reversible? |
+| --- | --- | --- |
+| An outbound phone call to a business | once per candidate, per attempt | No — a person's phone rings |
+| A follow-up call to the same business | at most once more, when a constraint is resolvably unknown | No |
+| A temporary hold requested on an item | only when `request_hold` is explicitly authorised | Yes — by calling back, which this skill does not do for you |
+| Rows written to your own store | every call | Yes |
+
+Nothing else. No purchase, payment, contract acceptance, or credential
+disclosure is ever performed, and the prohibited-phrase gate blocks such
+language from reaching a call task in the first place.
+
+**Before running in real mode**, make sure the candidate list contains only
+numbers you intend to dial. Demo or sample personas must never be dialled:
+their numbers are fictional but well-formed, so a real run reaches a
+stranger. Gate this structurally rather than by care — refuse to start unless
+the pending candidate set is exactly what you nominated.
+
+**Cancellation.** Stopping between calls is safe and immediate: the loop is
+driven by discrete ticks, all state is persisted, and abandoning a run leaves
+verified claims and their evidence intact. A call already in flight cannot be
+recalled — the person has answered — and the correct response to an aborted
+run is to let that call finish and ignore its result, not to redial.
+Idempotency keys mean a retried create never produces a second call.
+
+**Budgets.** `maxCalls` (default 8) and `maxCallsPerCandidate` (default 2)
+bound how many times anyone can be dialled in one run. Lower them before you
+raise them.
+
 ## Running a verification
 
 ### Option A — through the GroundTruth app (recommended)

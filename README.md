@@ -16,7 +16,7 @@
 <!-- TODO before submitting: add the demo video to the nav line above, e.g.  · [Demo video](https://youtu.be/…) -->
 
 ![SDK](https://img.shields.io/badge/%40call--e%2Fcalle-0.7.0-2dd4bf?style=flat-square)
-![Tests](https://img.shields.io/badge/tests-73%20unit%20%2B%20integration%20%C2%B7%202%20e2e-34d399?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-75%20unit%20%2B%20integration%20%C2%B7%202%20e2e-34d399?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-71717a?style=flat-square)
 
 </div>
@@ -50,7 +50,7 @@ below happens on its own, identically on every run.
 Verify the engineering in one command each:
 
 ```bash
-pnpm test        # 73 unit + integration tests
+pnpm test        # 75 unit + integration tests
 pnpm test:e2e    # 2 Playwright flows against a production build
 pnpm typecheck && pnpm lint && pnpm build
 ```
@@ -341,7 +341,8 @@ Shot list and narration notes: [docs/demo.md](docs/demo.md).
   before a human is dialed, not discovered afterwards as a permanent UNKNOWN.
 - **Honest failure** — `NO FULLY VERIFIED MATCH` with per-candidate reasons.
 - **Safety by construction** — orchestration-layer authorization, negation-
-  aware side-effect phrase gate, PII redaction, masked numbers, audit log.
+  aware side-effect phrase gate, PII redaction, masked numbers, audit log,
+  and demo supplier personas that refuse to be dialled outside mock mode.
 - **DEMO MODE** — a deterministic mock CALL-E with scripted supplier personas
   (success and failure narratives), clearly labeled, never pretending to be
   real.
@@ -423,7 +424,7 @@ back to mock.
 ```bash
 pnpm lint          # eslint (0 errors, 0 warnings)
 pnpm typecheck     # next typegen && tsc --noEmit
-pnpm test          # 73 unit + integration tests (vitest)
+pnpm test          # 75 unit + integration tests (vitest)
 pnpm build         # production build
 pnpm test:e2e      # 2 Playwright e2e flows against the production build
 pnpm db:push       # apply the Drizzle schema when DATABASE_URL is set

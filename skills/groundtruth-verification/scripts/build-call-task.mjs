@@ -18,7 +18,7 @@
  *     { "kind": "hold_until", "params": { "until": "5 PM" } }
  *   ],
  *   "authorizedActions": ["ask_question", "request_availability", "request_pricing", "request_pickup_window", "request_hold"],
- *   "candidate": { "name": "Metro Components", "phone": "+918047110001" },
+ *   "candidate": { "name": "Metro Components", "phone": "+91XXXXXXXXXX" },
  *   "priorContext": "You were going to check with your manager."
  * }
  *

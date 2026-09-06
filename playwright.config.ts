@@ -22,6 +22,9 @@ export default defineConfig({
     url: `http://127.0.0.1:${PORT}`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
-    env: { MOCK_CALL_E: "true" },
+    // Hermetic: force the in-memory store even when a developer's .env.local
+    // points at a real database. Remote round-trips per tick otherwise push
+    // the flagship flow past its timeout and make results depend on network.
+    env: { MOCK_CALL_E: "true", DATABASE_URL: "" },
   },
 });
