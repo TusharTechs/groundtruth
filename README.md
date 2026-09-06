@@ -61,7 +61,7 @@ pnpm typecheck && pnpm lint && pnpm build
 | --- | --- | --- |
 | **Real world impact** | Emergency parts procurement runs on phone calls today, one at a time, done by the most expensive person available, with no record of what was promised. GroundTruth compresses an afternoon of calling into one auditable run. | [The problem](#the-problem) |
 | **Quality of the idea** | CALL-E is used as a **sensor for a constraint solver**, not as a talking bot. `UNKNOWN` is a protected state; an honest "no" is a first-class output. | [What GroundTruth does](#what-groundtruth-does) |
-| **Technical implementation** | Real SDK, called at runtime, on **two** execution paths — ad-hoc `calls.create` and published `goals.run` — plus idempotency keys, a deduplicated webhook receiver, and a pre-dial contract check. | [Where CALL-E actually runs](#where-call-e-actually-runs) |
+| **Technical implementation** | Real SDK, called at runtime, on **two** execution paths — ad-hoc `calls.create` and published `goals.run` — plus idempotency keys, a deduplicated webhook receiver, and a pre-dial contract check. Verified with [a real call](#proof-a-real-call-and-an-honest-no). | [Where CALL-E actually runs](#where-call-e-actually-runs) |
 | **Product experience & demo** | A complete loop from plain-language goal to evidence you can click into, including the failure path. | [Demo](#demo) |
 
 ---
@@ -198,6 +198,59 @@ tick can never double-dial a human.
 **Two ingestion routes, one code path.** Poll results and webhook deliveries
 both land in `onCallTerminal`, so they produce identical claims and evidence.
 Webhook events are deduplicated by event id before processing.
+
+### Proof: a real call, and an honest "no"
+
+One real verification call was placed through CALL-E to a consenting test
+number. The full run is in the audit log; the parts that matter:
+
+```
+[CALL-E] MODE           {"mode":"real","execution":"call","baseUrl":"https://api.heycall-e.com"}
+[CALL-E] CALL CREATED   {"calleCallId":"call_DxfIoUheBQMhn2GeKu0_Ww","status":"queued",...}
+[CALL-E] CALL COMPLETED {"calleCallId":"call_DxfIoUheBQMhn2GeKu0_Ww","taskCompleted":true,
+                         "completionConfidence":0.78}
+```
+
+37 transcript turns. The supplier was evasive in the way real people are —
+half-answers, a talk-over, one "regarding what are you discussing about?":
+
+```
+[107s] GT : Thanks — is a genuine XZ-420 compressor physically in stock right now, or not?
+[115s] SUP: Correct. No, not at the moment.
+[118s] GT : Could you tell me whether pickup is available today, and if so, what time?
+[126s] SUP: No.
+```
+
+Note what the agent did at 107s: the first stock answer was hedged, so it
+re-asked with the planned fallback question — *"physically in stock right
+now, or not?"* — and got a definite answer.
+
+CALL-E returned this, and GroundTruth accepted every part of it:
+
+| Constraint | Result | Claim |
+| --- | --- | --- |
+| In stock | `not_available` | **failed** |
+| Pickup today | `false` | **failed** |
+| Price | never answered | **unknown** — not guessed |
+| Compatibility | `uncertain` | **unknown** — not promoted |
+| Hold until 5 PM | never answered | **unknown** |
+
+**Decision: `no_match`, confidence 0.** Five questions asked, two answered,
+three left open — and not one of them was invented to manufacture a result.
+That is the whole thesis, on a real phone call with a real human.
+
+Reproduce it safely against your own number:
+
+```bash
+MOCK_CALL_E=false CALLE_API_KEY=... pnpm start
+node scripts/real-call.mjs http://localhost:3000 +91XXXXXXXXXX "Test Supplier"
+```
+
+`createTask` seeds a task with the demo scenario's suppliers, whose numbers
+are fictional but well-formed — in real mode those would dial actual
+strangers. The script retires every discovered candidate and **refuses to
+start** unless the pending set is exactly the one number you nominated.
+`DRY_RUN=true` exercises that gate without spending a call.
 
 ### The part worth reviewing: a published Goal can be *unable* to answer you
 
@@ -394,7 +447,9 @@ Contribution workflow for the skill: [CONTRIBUTING.md](CONTRIBUTING.md).
   are unsigned (the SDK deprecates its signature helpers), so this is the
   strongest available transport auth today.
 - Mock mode scripts conversations; real-mode conversation quality is CALL-E's
-  to deliver.
+  to deliver. The one real call recorded above went through a talk-over and a
+  confused stretch before settling — that is what a real counter sounds like,
+  and why hedges are treated as UNKNOWN rather than parsed optimistically.
 - The Goal path exposes no transcript, so claims verified that way carry
   structured-result evidence and the correlated call id but no verbatim
   supplier quote. Use the ad-hoc call path when quotes matter.
